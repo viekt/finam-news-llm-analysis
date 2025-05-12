@@ -14,6 +14,10 @@ setup(
          'python-dotenv',
          'openai',
          'backoff',
+         'logging',
+         'matplotlib',
+         'seaborn',
+         'scikit-learn'
      ],
      entry_points={
          'console_scripts': [

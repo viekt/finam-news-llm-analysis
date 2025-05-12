@@ -1,6 +1,5 @@
 import pandas as pd
 import asyncio
-import json
 
 from .config import make_api_call_to_gpt
 
@@ -65,11 +64,4 @@ def run(
     grouped['signal'] = signals
     grouped['explanation'] = explanations
 
-    df_out = pd.merge(
-        df,
-        grouped[['ticker', 'date_only_trading', 'signal', 'explanation']],
-        on=['ticker', 'date_only_trading'],
-        how='right'
-    )
-
-    df_out.to_excel(output_xlsx, index=False)
+    grouped.to_excel(output_xlsx, index=False)
