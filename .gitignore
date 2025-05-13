@@ -17,3 +17,6 @@ venv/
 
 # Environment files
 .env.txt
+
+# macOS Finder metadata
+.DS_Store
