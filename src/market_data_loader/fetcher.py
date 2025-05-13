@@ -6,11 +6,13 @@ import pandas as pd
 from moexalgo import Ticker, Index
 from .db import get_conn, init_db
 from .config import TICKERS_PKL
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def fetch_one(ticker: str, day: date, period: int = 1):
     cls = Index if ticker == "IMOEX" else Ticker
     inst = cls(ticker)
-    # run blocking .candles in thread
     df = await asyncio.to_thread(
         lambda: inst.candles(start=str(day), end=str(day), period=period)
     )
@@ -42,6 +44,7 @@ async def update_all(trading_days: list[date], period: int):
     cur = conn.cursor()
 
     for ticker in tickers:
+        total_rows = 0
         for day in trading_days:
             rows = await fetch_one(ticker, day, period)
             if not rows:
@@ -52,4 +55,7 @@ async def update_all(trading_days: list[date], period: int):
                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
                 rows
             )
+            total_rows += len(rows)
+        logger.info("Inserted %d rows for %s", total_rows, ticker)
     conn.close()
+    logger.info("All tickers updated")

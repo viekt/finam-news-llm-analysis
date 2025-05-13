@@ -4,6 +4,7 @@ import asyncio
 import re
 import pandas as pd
 import requests
+import os
 
 from concurrent.futures import ThreadPoolExecutor
 from selenium import webdriver
@@ -13,25 +14,31 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from moexalgo import Market
 from .config import get_chrome_options
+from dotenv import load_dotenv
 
+load_dotenv(dotenv_path=".env.txt")
+
+EXTRA_FILES_FOLDER = os.getenv("EXTRA_FILES_FOLDER", "")
+
+if EXTRA_FILES_FOLDER:
+    os.makedirs(EXTRA_FILES_FOLDER, exist_ok=True)
 thread_local = threading.local()
 
 def fetch_section(section_url: str):
     """
-    Скроллит всю секцию и собирает:
-     - titles_with_links: список dict(title, link)
-     - unique_article_short_info: list из [title, short_info, shortname]
-    Сохраняет их в titles_links_main.json и article_short_info_main.json
+    Function to fetch articles from a given section URL.
+    It loads the page, clicks the "Download more" button until no more articles are available,
+    and then scrapes the titles and links of the articles.
+    It returns two lists: one with titles and links, and another with short information about the articles.
     """
     options = get_chrome_options()
     driver = webdriver.Chrome(options=options)
-    driver.get(section_url)  # URL вашей секции :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
+    driver.get(section_url)  
     wait = WebDriverWait(driver, 3)
 
     article_available_short_info = []
     titles_with_links = []
 
-    # Цикл «Load more»
     while True:
         try:
             overlay = driver.find_elements(By.CSS_SELECTOR, "div[data-part='menu-item']")
@@ -47,7 +54,7 @@ def fetch_section(section_url: str):
             print("Button 'Download more' not found or no more articles to load.")
             break
 
-    # Собираем заголовки+ссылки и короткие описания
+    # Scraping titles and links
     for el in driver.find_elements(By.CLASS_NAME, "cl-blue.font-l.bold"):
         titles_with_links.append({"title": el.text, "link": el.get_attribute("href")})
     for el in driver.find_elements(By.CLASS_NAME, "mb2x"):
@@ -55,16 +62,17 @@ def fetch_section(section_url: str):
 
     driver.quit()
 
-    # Убираем дубликаты
     df_links = pd.DataFrame(titles_with_links)
     unique_titles = df_links[df_links['title'] != ''] \
         .drop_duplicates(subset='title') \
         .to_dict(orient='records')
     unique_short = [list(x) for x in set(tuple(l) for l in article_available_short_info)]
 
-    with open('titles_links_main.json', 'w', encoding='utf-8') as f:
+    path_unique_titles = os.path.join(EXTRA_FILES_FOLDER, 'titles_links_main.json')
+    path_unique_short = os.path.join(EXTRA_FILES_FOLDER, 'article_short_info_main.json')
+    with open(path_unique_titles, 'w', encoding='utf-8') as f:
         json.dump(unique_titles, f, ensure_ascii=False, indent=4)
-    with open('article_short_info_main.json', 'w', encoding='utf-8') as f:
+    with open(path_unique_short, 'w', encoding='utf-8') as f:
         json.dump(unique_short, f, ensure_ascii=False, indent=4)
 
     return unique_titles, unique_short
@@ -79,7 +87,8 @@ def get_driver():
 
 def get_data(title, link):
     """
-    Как в оригинале — открывает статью, ждёт date/text, возвращает dict.
+    Function to scrape data from a given article link.
+    It uses Selenium to load the page and extract the date and text of the article.
     """
     driver = get_driver()
     driver.get(link)
@@ -100,8 +109,8 @@ def get_data(title, link):
 
 async def scrape_all(titles_links):
     """
-    Параллельно обрабатывает по 150 штук, после каждого чанка
-    дописывает в scraped_news.json — как в оригинале.
+    Scrape all articles in chunks to avoid blocking the main thread.
+    It uses asyncio and ThreadPoolExecutor to run the scraping tasks concurrently.
     """
     existing = []
     chunk_size = 150
@@ -126,7 +135,8 @@ async def scrape_all(titles_links):
         existing.extend(results)
         print("extended")
 
-        with open('scraped_news.json', 'w', encoding='utf-8') as f:
+        path_scraped = os.path.join(EXTRA_FILES_FOLDER, 'scraped_news.json')
+        with open(path_scraped, 'w', encoding='utf-8') as f:
             json.dump(existing, f, ensure_ascii=False, indent=4)
 
         start += chunk_size
@@ -135,8 +145,7 @@ async def scrape_all(titles_links):
 
 def extract_tickers(ticker_string: str):
     """
-    Регексп для извлечения тикеров — точь‑в‑точь ваш.
-    """
+    Extract tickers from a string using regex."""
     return re.findall(
         r'([А-Яа-яA-Za-z_()]+(?:\s[А-Яа-яA-Za-z_()]+)*)\s[-+]?\d+(?:,\d+)?%',
         ticker_string
@@ -144,17 +153,13 @@ def extract_tickers(ticker_string: str):
 
 def run(source: str, output_path: str):
     """
-    1) Если это URL секции — fetch_section.
-    2) Иначе — загружаем titles_links_main.json (и article_short_info_main.json).
-    3) Скрейпим все статьи.
-    4) Собираем DataFrame с датами/текстом.
-    5) Обрабатываем short_info → тикеры → merge с Market.tickers().
-    6) Сохраняем в Excel.
+    Pipeline to run the entire scraping process.
+    It fetches the articles from the given source, scrapes their data,
+    processes the data, and saves it to an Excel file.
     """
     if source.startswith(('http://', 'https://')) and '/section/' in source:
         titles_links, short_info = fetch_section(source)
     else:
-        # JSON-файл или URL с JSON
         if source.startswith(('http://', 'https://')):
             resp = requests.get(source)
             resp.raise_for_status()
@@ -162,16 +167,15 @@ def run(source: str, output_path: str):
         else:
             with open(source, encoding='utf-8') as f:
                 titles_links = json.load(f)
-        with open('article_short_info_main.json', encoding='utf-8') as f:
+
+        path_unique_short = os.path.join(EXTRA_FILES_FOLDER, 'article_short_info_main.json')
+        with open(path_unique_short, encoding='utf-8') as f:
             short_info = json.load(f)
 
-    # 3) Скрапим
     existing = asyncio.run(scrape_all(titles_links))
 
-    # 4) DF с датами/текстом
     df_news = pd.DataFrame(existing).drop_duplicates(subset=['title'])
 
-    # 5) Обработка short_info → тикеры
     processed = []
     for row in short_info:
         row = row[1:]
