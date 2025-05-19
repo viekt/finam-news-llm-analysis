@@ -55,7 +55,7 @@ market-load \
 ```
 
 ## Project Structure
-
+```bash
 finam-news-llm-analysis/
 ├── extra_files/                # Reference datasets (lookup tables, mappings)
 ├── plots/                      # Sample visualization outputs (PNG, SVG)
@@ -71,5 +71,5 @@ finam-news-llm-analysis/
 ├── setup.py                    # Installation & console_scripts entry points
 ├── .gitignore                  # Git ignore rules
 └── README.md                   # Project README (this file)
-
+```
 
