@@ -1,4 +1,4 @@
-# Module for thesis on LLM usage for financial news analysis
+# Thesis on LLM usage for financial news analysis
 ## Project Overview
 
 finam-news-llm-analysis is a toolkit and pipeline for ingesting, processing, and analyzing financial news using large language models (LLMs) and traditional market-data sources. It provides:
