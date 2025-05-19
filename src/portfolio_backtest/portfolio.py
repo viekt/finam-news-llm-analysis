@@ -116,6 +116,10 @@ class PortfolioReturn:
     def create_df_regression(
         self,
         non_trading: pd.DataFrame,
+        hour_open: int = 10,
+        minute_open: int = 0,
+        hour_close: int = 18,
+        minute_close: int = 40,
     ) -> pd.DataFrame:
         """
         For each row in non_trading, fetch market data between fixed times
@@ -126,18 +130,18 @@ class PortfolioReturn:
         df = non_trading.copy()
         df["trading_date"] = pd.to_datetime(df["trading_date"])
 
-        open_hour, open_min = 10, 1
-        close_hour, close_min = 18, 39
+        open_hour, open_min = 10, 00
+        close_hour, close_min = 18, 40
 
         df["trading_time"] = df["trading_date"].apply(
-            lambda d: d.replace(hour=open_hour, minute=open_min)
+            lambda d: d.replace(hour=hour_open, minute=minute_open)
         )
 
         results = []
         for _, row in df.iterrows():
             ticker = row["ticker"]
             time_open = row["trading_time"]
-            time_close = time_open.replace(hour=close_hour, minute=close_min)
+            time_close = time_open.replace(hour=hour_close, minute=minute_close)
 
             mkt = fetch_daily(ticker, time_open, time_close)
             if mkt.empty:
@@ -147,11 +151,8 @@ class PortfolioReturn:
             raw_ret = (exit_price - entry_price) / entry_price
 
             idx = fetch_daily(INDEX_TICKER, time_open, time_close)
-            if idx.empty:
-                continue
-            else:
-                index_entry_price, index_exit_price = idx.open.iloc[0], idx.close.iloc[0]
-                idx_ret = (index_exit_price - index_entry_price) / index_entry_price
+            index_entry_price, index_exit_price = idx.open.iloc[0], idx.close.iloc[0]
+            idx_ret = (index_exit_price - index_entry_price) / index_entry_price
 
 
             results.append({
@@ -161,9 +162,30 @@ class PortfolioReturn:
                 "index_return":  idx_ret,
                 "excess_return": raw_ret - idx_ret,
                 "trading_date":     row["trading_date"],
+                "combined_prompt": row["combined_prompt"],
             })
 
         return pd.DataFrame(results)
+    
+    def compute_returns_by_offset(self, df_gpt, base_open=(9, 51), base_close=(18, 49), max_offset=15):
+        records = []
+        for offset in range(1, max_offset + 1):
+            for _, row in df_gpt.iterrows():
+                date = pd.to_datetime(row["trading_date"])
+                start = date.replace(hour=base_open[0], minute=base_open[1]) + timedelta(minutes=offset)
+                end   = date.replace(hour=base_close[0], minute=base_close[1]) - timedelta(minutes=offset)
+                mkt = fetch_daily(row["ticker"], start, end)
+                if mkt.empty:
+                    continue
+                raw_ret = (mkt.close.iloc[-1] - mkt.open.iloc[0]) / mkt.open.iloc[0]
+                idx    = fetch_daily(INDEX_TICKER, start, end)
+                idx_ret = (idx.close.iloc[-1] - idx.open.iloc[0]) / idx.open.iloc[0]
+                records.append({
+                    "offset": offset,
+                    "raw_return": raw_ret,
+                    "excess_return": raw_ret - idx_ret
+                })
+        return pd.DataFrame(records)
     
     def _compute_metrics(self, returns: pd.Series) -> dict:
         """

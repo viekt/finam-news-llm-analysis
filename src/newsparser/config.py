@@ -1,4 +1,12 @@
 from selenium.webdriver.chrome.options import Options
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=".env.txt")
+
+EXTRA_FILES_FOLDER = os.getenv("EXTRA_FILES_FOLDER", "")
+
+if EXTRA_FILES_FOLDER:
+    os.makedirs(EXTRA_FILES_FOLDER, exist_ok=True)
 
 def get_chrome_options():
     """

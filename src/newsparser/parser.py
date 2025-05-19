@@ -13,15 +13,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from moexalgo import Market
-from .config import get_chrome_options
-from dotenv import load_dotenv
+from .config import get_chrome_options, EXTRA_FILES_FOLDER
 
-load_dotenv(dotenv_path=".env.txt")
-
-EXTRA_FILES_FOLDER = os.getenv("EXTRA_FILES_FOLDER", "")
-
-if EXTRA_FILES_FOLDER:
-    os.makedirs(EXTRA_FILES_FOLDER, exist_ok=True)
 thread_local = threading.local()
 
 def fetch_section(section_url: str):

@@ -17,7 +17,8 @@ setup(
          'logging',
          'matplotlib',
          'seaborn',
-         'scikit-learn'
+         'scikit-learn',
+         'pyfixest'
      ],
      entry_points={
          'console_scripts': [

@@ -2,10 +2,7 @@ import os
 import argparse
 from .parser import run
 from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=".env.txt")
-
-WORK_FOLDER = os.getenv("WORK_FILES_FOLDER", "")
+from .config import WORK_FOLDER
 
 def main():
     parser = argparse.ArgumentParser(

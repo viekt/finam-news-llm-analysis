@@ -38,7 +38,6 @@ async def update_all(trading_days: list[date], period: int):
     with open(TICKERS_PKL, "rb") as f:
         tickers = pickle.load(f)
 
-    # ensure table exists
     init_db()
     conn = get_conn()
     cur = conn.cursor()
